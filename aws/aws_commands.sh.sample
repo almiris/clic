@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# RENAME THIS FILE TO aws_commands.sh!
+
+#####
+## The list of commands. Each command is a function starting with "command_"
+## The command has access to:
+##   - ${user} The selected user
+##   - ${project} The selected project
+##   - ${environment} The selected environment
+##   - Some shared functions: selectWithDefault (eg: user=$(selectWithDefault "${users[@]}"))
+##
+## The AWS command expect a ~/.aws/config file with profiles defined like below:
+##   [profile <user>_<project>_<environment>]
+##   sso_start_url=<your_sso_url>
+##   sso_region=<your_sso_region>
+##   sso_account_id=<your_account_id>
+##   sso_role_name=<your_sso_role_name>
+##   region=<your_profile_region>
+##   output=json
+##
+
+# Authenticate to AWS without launching a browser
+command_aws_sso() {
+  if [[ ! -z "${browser}" ]]; then
+    export BROWSER=${browser}
+  fi
+  export AWS_PROFILE=${user}_${project}_${environment}
+  aws sso login --profile ${AWS_PROFILE}
+  echo Now, execute this: export AWS_PROFILE=${AWS_PROFILE}
+}
+
+# Tunnel to the default RDS
+command_aws_tunnel_to_default_rds() {
+  export AWS_PROFILE=${user}_${project}_${environment}
+  region=eu-central-1
+  ec2_instance_id=$(aws ec2 describe-instances --profile ${AWS_PROFILE} | jq -r '.Reservations[].Instances[].InstanceId')
+  rds_instance_id=$(aws rds describe-db-instances --profile ${AWS_PROFILE} | jq -r '.DBInstances[].Endpoint.Address')
+  aws ssm start-session --target ${ec2_instance_id} --document-name "AWS-StartPortForwardingSessionToRemoteHost" --parameters '{"portNumber":["5432"],"localPortNumber":["5433"],"host":["'"$rds_instance_id"'"]}' --region ${region}
+}
+
+command_aws_connect_to_backend() {
+  export AWS_PROFILE=${user}_${project}_${environment}
+  region=eu-central-1
+  ec2_instance_id=$(aws ec2 describe-instances --query 'Reservations[].Instances[].{name: Tags[?Key==`Name`].Value[], id: InstanceId}' --output json --profile ${AWS_PROFILE} | jq -r --arg name "${project}-backend-env" '.[] | select(.name[0] == $name) | .id')
+  aws ssm start-session --target ${ec2_instance_id} --region ${region}
+}
+
+command_aws_list_rds() {
+  export AWS_PROFILE=${user}_${project}_${environment}
+  aws rds describe-db-instances --profile ${AWS_PROFILE} | jq -r '.DBInstances[].Endpoint.Address'
+}
+
+command_aws_list_ec2() {
+  export AWS_PROFILE=${user}_${project}_${environment}
+  aws ec2 describe-instances --profile ${AWS_PROFILE} | jq -r '.Reservations[].Instances[].InstanceId'
+}
+
+# Collect the commands in an associative array <=> needs newer version of bash
+# declare -A commands=(
+#   ["Command 1"]=command1
+#   ["Command 2"]=command2
+#   ["Command 3"]=command3
+# )

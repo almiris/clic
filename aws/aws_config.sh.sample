@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# RENAME THIS FILE TO aws_config.sh!
+
+# Define the user list. "!<user>" is the default user
+users=("!a_user")
+
+# Define the project list. "!<project>" is the default project
+projects=("!a_project" "another_project")
+
+# Define the environment list. "!<environment>" is the default environment
+environments=("!d" "p")
+
+# Default command if any
+default_command="command_aws_sso"
+
+browser=/usr/bin/true
